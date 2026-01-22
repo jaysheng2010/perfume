@@ -1,0 +1,5 @@
+Flask>=2.3
+Flask-Cors>=3.0
+Flask-Limiter>=2.0
+SQLAlchemy>=2.0
+PyMySQL>=1.1
