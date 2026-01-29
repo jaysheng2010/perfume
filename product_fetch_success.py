@@ -1,0 +1,79 @@
+from flask import Flask, render_template_string, jsonify, request
+from flask_cors import CORS
+from flask_limiter import Limiter
+from sqlalchemy import create_engine, text
+
+engine = create_engine(
+   "mysql+pymysql://4J4VubRMtDYVKrk.root:UtLbWgr32k7ka8sW@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/perfume_product_db",
+    connect_args={
+        "ssl": {"ca": "/etc/ssl/cert.pem"}
+    },
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=1800,
+    pool_pre_ping=True,
+)
+
+redis_uri = "https://enormous-mule-18897.upstash.io"
+redis_token = "AUnRAAIncDI3YTk1YTk5NjBmYzU0YWY0OWMzZTRiMDBjNGJiZmYwYXAyMTg4OTc"
+
+def select(query, value):
+   with engine.connect() as conn:
+      return conn.execute(text(query), value)
+   
+def update(query, value):
+   with engine.begin() as conn:
+       conn.execute(text(query), value)
+   
+def insert(query, value):
+   with engine.begin() as conn:
+       conn.execute(text(query), value)
+   
+def delete(query, value):
+   with engine.begin() as conn:
+       conn.execute(text(query), value)
+
+
+def get_data():
+    with engine.connect() as conn:
+      items = conn.execute(text("SELECT name, quantity, price, img_link, description FROM products_tbl"))
+      list_items = []
+      for x in items:
+          list_items.append(list(x))
+      return list_items
+
+
+product_list = get_data()
+
+
+def get_ip():
+   if "X-Forwarded-For" in request.headers:
+      return request.headers["X-Forwarded-For"].split(",")[0].strip()
+   else:
+      return request.remote_addr
+
+app = Flask(__name__)
+
+CORS(app, allow_headers=["Content-Type", "Authorisation"], methods=["GET", "POST", "OPTIONS"])
+limiter = Limiter(app=app, key_func=get_ip, storage_uri=f"redis://:{redis_token}@{redis_uri.split('//')[1]}")
+
+@limiter.limit("10 per minute")
+@app.route("/", methods=["GET"])
+def index():
+    if (request.method == "GET"):
+        return jsonify({"products": product_list})
+    else:
+        return "Method not allowed"
+    
+
+@app.route("/refresh", methods=["GET"])
+def refresh():
+    global product_list
+    product_list = get_data()
+    return "Success"
+    
+
+if __name__ == "__main__":
+   app.run(debug=False)
+
+
